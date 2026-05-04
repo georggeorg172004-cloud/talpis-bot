@@ -4,6 +4,7 @@ from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 
+import config
 from ai_handler import ask_ai
 from scheduler import add_subscriber, remove_subscriber
 
@@ -11,8 +12,17 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
+def is_allowed(user_id: int) -> bool:
+    if not config.ALLOWED_USERS:
+        return True  # если список пустой — пускаем всех
+    return user_id in config.ALLOWED_USERS
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
+    if not is_allowed(message.from_user.id):
+        await message.answer("⛔ У вас нет доступа к этому боту.")
+        return
     add_subscriber(message.from_user.id)
     await message.answer(
         "👋 Привет! Я бот календаря мероприятий <b>Talpis</b>.\n\n"
@@ -27,12 +37,16 @@ async def cmd_start(message: Message):
 
 @router.message(Command("stop"))
 async def cmd_stop(message: Message):
+    if not is_allowed(message.from_user.id):
+        return
     remove_subscriber(message.from_user.id)
     await message.answer("Ты отписался от уведомлений. Напиши /start чтобы подписаться снова.")
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
+    if not is_allowed(message.from_user.id):
+        return
     await message.answer(
         "📋 <b>Команды:</b>\n"
         "/start — подписаться на уведомления\n"
@@ -45,6 +59,9 @@ async def cmd_help(message: Message):
 
 @router.message(F.text)
 async def handle_question(message: Message):
+    if not is_allowed(message.from_user.id):
+        return
+
     # В группе реагируем только на упоминание бота
     if message.chat.type in ("group", "supergroup"):
         bot_username = (await message.bot.get_me()).username
